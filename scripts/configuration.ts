@@ -41,6 +41,7 @@ export const configuration = {
         CLUSTER_NAME: `${ENV.Sam.STACK_NAME}-cluster`,
         SERVICE_NAME: `${ENV.Sam.STACK_NAME}-service`,
         BOT_IMAGE_NAME: `${ENV.Sam.STACK_NAME}-bot-image`,
+        MOTD: ENV.ServerEnvironment.MOTD as string ?? '',
     },
     Secrets: {
         ...ENV.Secrets,

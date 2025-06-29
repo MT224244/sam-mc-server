@@ -44,6 +44,9 @@ Parameters:
   BotImageName:
     Type: String
 
+  Motd:
+    Type: String
+
   CloudflareZoneId:
     Type: String
   CloudflareRecordId:
@@ -705,6 +708,8 @@ Resources:
               Value: !Ref ClusterName
             - Name: SERVICE_NAME
               Value: !Ref ServiceName
+            - Name: MOTD
+              Value: !Ref Motd
             - Name: CLOUDFLARE_API_TOKEN
               Value: !Sub '{{resolve:secretsmanager:${AWS::StackName}-secret:SecretString:CloudflareApiToken}}'
             - Name: CLOUDFLARE_ZONE_ID

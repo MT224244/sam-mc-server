@@ -100,6 +100,12 @@ export const SERVICE_NAME = (() => {
     return value;
 })();
 
+export const MOTD = (() => {
+    const value = Bun.env.MOTD;
+    if (!value) throw Error('MOTD not found');
+    return value;
+})();
+
 export const CLOUDFLARE_API_TOKEN = (() => {
     const value = Bun.env.CLOUDFLARE_API_TOKEN;
     if (!value) throw Error('CLOUDFLARE_API_TOKEN not found');

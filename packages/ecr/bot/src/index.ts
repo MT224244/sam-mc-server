@@ -4,7 +4,7 @@ import { BotClient } from '@/discord/BotClient';
 import { LogWatcher } from '@/mc/LogWatcher';
 import { parseListCommandResponse } from '@/mc/util/parseListCommandResponse';
 import { sendOneCommand } from '@/mc/util/sendOneCommand';
-import { AUTO_SHUTDOWN_MINUTES, SERVER_PORT } from '@/util/env';
+import { AUTO_SHUTDOWN_MINUTES, MOTD, SERVER_PORT } from '@/util/env';
 import { getCloudflareRecord } from '@/util/getCloudflareRecord';
 import { terminate } from '@/util/terminate';
 
@@ -85,7 +85,9 @@ const updateBotPresence = async () => {
     const res = await sendOneCommand('list');
     const parsed = parseListCommandResponse(res);
     if (parsed) {
-        botClient.setPresence('online', `[${parsed.count}/${parsed.max}]`);
+        let text = `[${parsed.count}/${parsed.max}]`;
+        if (MOTD !== '') text += ` ${MOTD.replace(/§./g, '')}`;
+        botClient.setPresence('online', text);
     }
 };
 
