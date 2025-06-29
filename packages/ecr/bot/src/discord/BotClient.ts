@@ -106,6 +106,8 @@ export class BotClient extends EventEmitter<BotClientEvents> {
     }
 
     private async onInteractionCreate(interaction: Interaction) {
+        if (interaction.channelId !== DISCORD_CHANNEL_ID) return;
+
         try {
             if (interaction.isChatInputCommand()) {
                 const command = commands.find(x => x.definition.name === interaction.commandName);
@@ -135,6 +137,7 @@ export class BotClient extends EventEmitter<BotClientEvents> {
     private onMessageCreate(message: OmitPartialGroupDMChannel<Message>) {
         if (message.author.bot) return;
         if (message.author.system) return;
+        if (message.channelId !== DISCORD_CHANNEL_ID) return;
 
         const content = message.content;
 
