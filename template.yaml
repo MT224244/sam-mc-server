@@ -538,6 +538,8 @@ Resources:
           lastStatus:
             - RUNNING
             - STOPPED
+          clusterArn:
+            - !GetAtt Cluster.Arn
       Targets:
         - Id: !Ref UpdateDns
           Arn: !GetAtt UpdateDns.Arn
