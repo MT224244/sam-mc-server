@@ -13,26 +13,10 @@ Parameters:
 
   ServerPort:
     Type: String
-  RconPort:
-    Type: String
 
   DiscordChannelId:
     Type: String
   GamedataDir:
-    Type: String
-  ServerStartLogRegexp:
-    Type: String
-  ServerStopLogRegexp:
-    Type: String
-  PlayerJoinedLogRegexp:
-    Type: String
-  PlayerLeftLogRegexp:
-    Type: String
-  PlayerChatLogRegexp:
-    Type: String
-  ListCommandRegexp:
-    Type: String
-  AutoShutdownMinutes:
     Type: String
 
   BucketName:
@@ -42,9 +26,6 @@ Parameters:
   ServiceName:
     Type: String
   BotImageName:
-    Type: String
-
-  Motd:
     Type: String
 
   CloudflareZoneId:
@@ -675,31 +656,18 @@ Resources:
             - ContainerPath: !Ref GamedataDir
               SourceVolume: !Sub ${AWS::StackName}-server-data
           Secrets:
+            - Name: CLOUDFLARE_API_TOKEN
+              ValueFrom: !Sub '${Secret}:CloudflareApiToken::'
             - Name: DISCORD_BOT_TOKEN
               ValueFrom: !Sub '${Secret}:DiscordBotToken::'
             - Name: RCON_PASSWORD
               ValueFrom: !Sub '${Secret}:RconPassword::'
+          EnvironmentFiles:
+            - Type: s3
+              Value: !Sub arn:aws:s3:::${AWS::StackName}-stack/bot.env
           Environment:
-            - Name: DISCORD_CHANNEL_ID
-              Value: !Ref DiscordChannelId
             - Name: GAMEDATA_DIR
               Value: !Ref GamedataDir
-            - Name: SERVER_START_LOG_REGEXP
-              Value: !Ref ServerStartLogRegexp
-            - Name: SERVER_STOP_LOG_REGEXP
-              Value: !Ref ServerStopLogRegexp
-            - Name: PLAYER_JOINED_LOG_REGEXP
-              Value: !Ref PlayerJoinedLogRegexp
-            - Name: PLAYER_LEFT_LOG_REGEXP
-              Value: !Ref PlayerLeftLogRegexp
-            - Name: PLAYER_CHAT_LOG_REGEXP
-              Value: !Ref PlayerChatLogRegexp
-            - Name: LIST_COMMAND_REGEXP
-              Value: !Ref ListCommandRegexp
-            - Name: AUTO_SHUTDOWN_MINUTES
-              Value: !Ref AutoShutdownMinutes
-            - Name: RCON_PORT
-              Value: !Ref RconPort
             - Name: SERVER_START_FUNCTION_URL
               Value: !GetAtt StartServerUrl.FunctionUrl
             - Name: DOWNLOAD_GAMEDATA_FUNCTION_URL
@@ -710,16 +678,6 @@ Resources:
               Value: !Ref ClusterName
             - Name: SERVICE_NAME
               Value: !Ref ServiceName
-            - Name: MOTD
-              Value: !Ref Motd
-            - Name: CLOUDFLARE_API_TOKEN
-              Value: !Sub '{{resolve:secretsmanager:${AWS::StackName}-secret:SecretString:CloudflareApiToken}}'
-            - Name: CLOUDFLARE_ZONE_ID
-              Value: !Ref CloudflareZoneId
-            - Name: CLOUDFLARE_RECORD_ID
-              Value: !Ref CloudflareRecordId
-            - Name: SERVER_PORT
-              Value: !Ref ServerPort
   #endregion
 
 Metadata:
