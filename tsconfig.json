@@ -1,0 +1,21 @@
+{
+    "extends": "./tsconfig.base.json",
+    "references": [
+        {
+            "path": "./packages/ecr/bot"
+        },
+        {
+            "path": "./packages/lambda/download-gamedata"
+        },
+        {
+            "path": "./packages/lambda/post-deploy"
+        },
+        {
+            "path": "./packages/lambda/start-server"
+        },
+        {
+            "path": "./packages/lambda/update-dns"
+        },
+    ],
+    "include": [],
+}

@@ -1,0 +1,12 @@
+{
+    "name": "update-dns",
+    "version": "1.0.0",
+    "dependencies": {
+        "@aws-sdk/client-ec2": "^3.839.0",
+        "cloudflare": "^4.4.1",
+        "discord.js": "^14.21.0"
+    },
+    "devDependencies": {
+        "@types/aws-lambda": "^8.10.150"
+    }
+}

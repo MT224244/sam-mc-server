@@ -1,0 +1,9 @@
+node_modules
+
+.aws-composer
+.aws-sam
+.history
+
+tsconfig.tsbuildinfo
+.env
+.env.toml

@@ -1,0 +1,38 @@
+{
+    "name": "sam-mc-server",
+    "version": "1.0.0",
+    "private": true,
+    "scripts": {
+        "build:bot": "bun run scripts/build/build-bot-image.ts",
+        "build:sam": "bun run scripts/build/build-sam.ts",
+        "build": "run-s build:bot build:sam",
+        "deploy:s3": "bun run scripts/deploy/initialize-bucket.ts",
+        "deploy:sam": "bun run scripts/deploy/deploy-sam.ts",
+        "deploy:bot": "bun run scripts/deploy/upload-bot-image.ts",
+        "deploy": "run-s deploy:s3 deploy:sam deploy:bot",
+        "delete:bot": "bun run scripts/delete/clear-bot-images.ts",
+        "delete:sam": "bun run scripts/delete/delete-sam.ts",
+        "delete:s3": "bun run scripts/delete/delete-bucket.ts",
+        "delete": "run-s delete:bot delete:sam delete:s3",
+        "typecheck": "tsc -b --noEmit",
+        "lint": "eslint",
+        "lint:inspector": "eslint --inspect-config",
+        "check": "run-s typecheck lint"
+    },
+    "workspaces": [
+        "packages/ecr/*",
+        "packages/lambda/*"
+    ],
+    "devDependencies": {
+        "@eslint/js": "^9.30.0",
+        "@stylistic/eslint-plugin": "^5.0.0",
+        "@types/bun": "^1.2.17",
+        "change-case": "^5.4.4",
+        "eslint": "^9.30.0",
+        "eslint-config-flat-gitignore": "^2.1.0",
+        "eslint-plugin-simple-import-sort": "^12.1.1",
+        "jiti": "^2.4.2",
+        "npm-run-all2": "^8.0.4",
+        "typescript-eslint": "^8.35.0"
+    }
+}

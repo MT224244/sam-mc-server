@@ -1,0 +1,756 @@
+Transform: AWS::Serverless-2016-10-31
+
+Parameters:
+  AvailabilityZone:
+    Type: String
+  BunLayerArn:
+    Type: String
+
+  ServerCpu:
+    Type: String
+  ServerMemory:
+    Type: String
+
+  ServerPort:
+    Type: String
+  RconPort:
+    Type: String
+
+  DiscordChannelId:
+    Type: String
+  GamedataDir:
+    Type: String
+  ServerStartLogRegexp:
+    Type: String
+  ServerStopLogRegexp:
+    Type: String
+  PlayerJoinedLogRegexp:
+    Type: String
+  PlayerLeftLogRegexp:
+    Type: String
+  PlayerChatLogRegexp:
+    Type: String
+  ListCommandRegexp:
+    Type: String
+  AutoShutdownMinutes:
+    Type: String
+
+  BucketName:
+    Type: String
+  ClusterName:
+    Type: String
+  ServiceName:
+    Type: String
+  BotImageName:
+    Type: String
+
+  CloudflareZoneId:
+    Type: String
+  CloudflareRecordId:
+    Type: String
+
+  CloudflareApiToken:
+    Type: String
+    NoEcho: true
+  DiscordBotToken:
+    Type: String
+    NoEcho: true
+  RconPassword:
+    Type: String
+    NoEcho: true
+
+Mappings:
+  Subnets:
+    VPC:
+      CIDR: 10.0.0.0/16
+    Private:
+      CIDR: 10.0.1.0/24
+    Public:
+      CIDR: 10.0.2.0/24
+
+Globals:
+  Function:
+    Runtime: provided.al2
+    Architectures:
+      - arm64
+    RecursiveLoop: Terminate
+    SnapStart:
+      ApplyOn: None
+    RuntimeManagementConfig:
+      UpdateRuntimeOn: Auto
+    Layers:
+      - !Ref BunLayerArn
+
+Resources:
+  Secret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${AWS::StackName}-secret
+      SecretString: !Sub |-
+        {
+          "CloudflareApiToken": "${CloudflareApiToken}",
+          "DiscordBotToken": "${DiscordBotToken}",
+          "RconPassword": "${RconPassword}"
+        }
+
+  #region Policies
+
+  WriteLogPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub ${AWS::StackName}-write-log-policy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*
+
+  ReadBucketPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub ${AWS::StackName}-read-bucket-policy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:GetBucketLocation
+            Resource: !Sub arn:aws:s3:::${AWS::StackName}-stack
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+            Resource: !Sub arn:aws:s3:::${AWS::StackName}-stack/*
+
+  WriteBucketPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub ${AWS::StackName}-write-bucket-policy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:CreateBucket
+            Resource: !Sub arn:aws:s3:::*
+          - Effect: Allow
+            Action:
+              - s3:PutObject
+            Resource: !Sub arn:aws:s3:::${AWS::StackName}-stack/*
+
+  ReadRepositoryPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub ${AWS::StackName}-read-repository-policy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - ecr:GetAuthorizationToken
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - ecr:BatchCheckLayerAvailability
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+            Resource: !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/*
+
+  ReadSecretPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub ${AWS::StackName}-read-secret-policy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:*
+
+  ReadEniPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub ${AWS::StackName}-read-eni-policy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - ec2:DescribeNetworkInterfaces
+            Resource: '*'
+
+  ReadServicePolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub ${AWS::StackName}-read-service-policy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - ecs:DescribeServices
+            Resource: '*'
+
+  WriteServicePolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub ${AWS::StackName}-write-service-policy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - ecs:UpdateService
+            Resource: !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/*
+
+  #endregion
+
+  #region LogGroups
+
+  PostDeployLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /${AWS::StackName}/lambda/post-deploy
+      RetentionInDays: 7
+
+  StartServerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /${AWS::StackName}/lambda/start-server
+      RetentionInDays: 7
+
+  DownloadGamedataLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /${AWS::StackName}/lambda/download-gamedata
+      RetentionInDays: 7
+
+  UpdateDnsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /${AWS::StackName}/lambda/update-dns
+      RetentionInDays: 7
+
+  GameTaskLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /${AWS::StackName}/task/game
+      RetentionInDays: 7
+
+  BotTaskLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /${AWS::StackName}/task/bot
+      RetentionInDays: 7
+
+  #endregion
+
+  #region SecurityGroup
+
+  StorageSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${AWS::StackName}-storage-security-group
+      GroupDescription: EFS 2049
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-storage-security-group
+
+  ServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${AWS::StackName}-server-security-group
+      GroupDescription: Minecraft server port
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !Ref ServerPort
+          ToPort: !Ref ServerPort
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-server-security-group
+
+  #endregion
+
+  #region VPC
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !FindInMap
+        - Subnets
+        - VPC
+        - CIDR
+      InstanceTenancy: default
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-vpc
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-internet-gateway
+
+  VpcGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !FindInMap
+        - Subnets
+        - Private
+        - CIDR
+      AvailabilityZone: !Ref AvailabilityZone
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-private-subnet
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !FindInMap
+        - Subnets
+        - Public
+        - CIDR
+      AvailabilityZone: !Ref AvailabilityZone
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-public-subnet
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VpcGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRouteTable
+
+  #endregion
+
+  #region EFS
+
+  GameDataStorage:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      Encrypted: true
+      AvailabilityZoneName: !Ref AvailabilityZone
+      BackupPolicy:
+        Status: DISABLED
+      FileSystemTags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-gamedata-storage
+
+  MountTarget:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref GameDataStorage
+      SubnetId: !Ref PrivateSubnet
+      SecurityGroups:
+        - !Ref StorageSecurityGroup
+
+  AccessPoint:
+    Type: AWS::EFS::AccessPoint
+    Properties:
+      FileSystemId: !Ref GameDataStorage
+      PosixUser:
+        Uid: '1001'
+        Gid: '1001'
+      RootDirectory:
+        Path: !Ref GamedataDir
+        CreationInfo:
+          OwnerUid: '1001'
+          OwnerGid: '1001'
+          Permissions: '0755'
+
+  #endregion
+
+  #region Lambda DownloadGamedata
+
+  DownloadGamedata:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - Secret
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-download-gamedata
+      CodeUri: packages/lambda/download-gamedata
+      Timeout: 20
+      Handler: index.fetch
+      PackageType: Zip
+      LoggingConfig:
+        LogGroup: !Ref DownloadGamedataLogGroup
+      Policies:
+        - !Ref WriteLogPolicy
+        - !Ref ReadBucketPolicy
+      FunctionUrlConfig:
+        AuthType: NONE
+
+  #endregion
+  #region Lambda PostDeploy
+
+  PostDeploy:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - Secret
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-post-deploy
+      CodeUri: packages/lambda/post-deploy
+      Timeout: 20
+      Handler: index.fetch
+      PackageType: Zip
+      LoggingConfig:
+        LogGroup: !Ref PostDeployLogGroup
+      Policies:
+        - !Ref WriteLogPolicy
+      Environment:
+        Variables:
+          DISCORD_BOT_TOKEN: !Sub '{{resolve:secretsmanager:${AWS::StackName}-secret:SecretString:DiscordBotToken}}'
+          DISCORD_CHANNEL_ID: !Ref DiscordChannelId
+          SERVER_START_FUNCTION_URL: !GetAtt StartServerUrl.FunctionUrl
+
+  PostDeployEvent:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub ${AWS::StackName}-post-deploy-event
+      EventPattern:
+        detail-type:
+          - ECR Image Action
+        source:
+          - aws.ecr
+        detail:
+          action-type:
+            - PUSH
+          repository-name:
+            - !Ref BotImageName
+      Targets:
+        - Id: !Ref PostDeploy
+          Arn: !GetAtt PostDeploy.Arn
+
+  PostDeployEventToPostDeployConnector:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt PostDeploy.Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt PostDeployEvent.Arn
+
+  #endregion
+  #region Lambda StartServer
+
+  StartServer:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - Secret
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-start-server
+      CodeUri: packages/lambda/start-server
+      Timeout: 20
+      Handler: index.fetch
+      PackageType: Zip
+      LoggingConfig:
+        LogGroup: !Ref StartServerLogGroup
+      Policies:
+        - !Ref WriteLogPolicy
+        - !Ref ReadServicePolicy
+        - !Ref WriteServicePolicy
+      FunctionUrlConfig:
+        AuthType: NONE
+      Environment:
+        Variables:
+          CLUSTER_NAME: !Ref ClusterName
+          SERVICE_NAME: !Ref ServiceName
+          DISCORD_BOT_TOKEN: !Sub '{{resolve:secretsmanager:${AWS::StackName}-secret:SecretString:DiscordBotToken}}'
+          DISCORD_CHANNEL_ID: !Ref DiscordChannelId
+
+  #endregion
+  #region Lambda UpdateDns
+
+  UpdateDns:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - Secret
+      - UpdateDnsLogGroup
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-update-dns
+      CodeUri: packages/lambda/update-dns
+      Timeout: 20
+      Handler: index.fetch
+      PackageType: Zip
+      LoggingConfig:
+        LogGroup: !Ref UpdateDnsLogGroup
+      Policies:
+        - !Ref WriteLogPolicy
+        - !Ref ReadEniPolicy
+      Environment:
+        Variables:
+          CLOUDFLARE_API_TOKEN: !Sub '{{resolve:secretsmanager:${AWS::StackName}-secret:SecretString:CloudflareApiToken}}'
+          CLOUDFLARE_ZONE_ID: !Ref CloudflareZoneId
+          CLOUDFLARE_RECORD_ID: !Ref CloudflareRecordId
+          DISCORD_BOT_TOKEN: !Sub '{{resolve:secretsmanager:${AWS::StackName}-secret:SecretString:DiscordBotToken}}'
+          DISCORD_CHANNEL_ID: !Ref DiscordChannelId
+          SERVER_START_FUNCTION_URL: !GetAtt StartServerUrl.FunctionUrl
+
+  DetectStartServerEvent:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub ${AWS::StackName}-detect-wakeup
+      EventPattern:
+        detail-type:
+          - ECS Task State Change
+        source:
+          - aws.ecs
+        detail:
+          lastStatus:
+            - RUNNING
+            - STOPPED
+      Targets:
+        - Id: !Ref UpdateDns
+          Arn: !GetAtt UpdateDns.Arn
+
+  DetectStartServerEventToUpdateDnsConnector:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt UpdateDns.Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt DetectStartServerEvent.Arn
+
+  #endregion
+
+  #region Server
+
+  BotImage:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref BotImageName
+
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Ref ClusterName
+
+  Service:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Ref ServiceName
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref TaskDefinition
+      DesiredCount: 0
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref PublicSubnet
+          SecurityGroups:
+            - !Ref ServerSecurityGroup
+
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${AWS::StackName}-task-execution-role
+      ManagedPolicyArns:
+        - !Ref ReadRepositoryPolicy
+        - !Ref ReadBucketPolicy
+        - !Ref ReadSecretPolicy
+        - !Ref WriteLogPolicy
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${AWS::StackName}-task-role
+      ManagedPolicyArns:
+        - !Ref ReadBucketPolicy
+        - !Ref WriteBucketPolicy
+        - !Ref WriteServicePolicy
+        - !Ref WriteLogPolicy
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn:
+      - Secret
+    Properties:
+      Family: !Sub ${AWS::StackName}-task-definition
+      Cpu: !Ref ServerCpu
+      Memory: !Ref ServerMemory
+      NetworkMode: awsvpc
+      ExecutionRoleArn: !Ref TaskExecutionRole
+      TaskRoleArn: !Ref TaskRole
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      Volumes:
+        - Name: !Sub ${AWS::StackName}-server-data
+          EFSVolumeConfiguration:
+            FilesystemId: !Ref GameDataStorage
+            TransitEncryption: ENABLED
+            AuthorizationConfig:
+              AccessPointId: !Ref AccessPoint
+      ContainerDefinitions:
+        - Name: !Sub ${AWS::StackName}-game
+          Image: itzg/minecraft-server:latest
+          Essential: false
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref GameTaskLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: !Ref AWS::StackName
+              mode: non-blocking
+              max-buffer-size: 25m
+          PortMappings:
+            - Protocol: tcp
+              HostPort: !Ref ServerPort
+              ContainerPort: !Ref ServerPort
+          MountPoints:
+            - ContainerPath: !Ref GamedataDir
+              SourceVolume: !Sub ${AWS::StackName}-server-data
+          EnvironmentFiles:
+            - Type: s3
+              Value: !Sub arn:aws:s3:::${AWS::StackName}-stack/server.env
+        - Name: !Sub ${AWS::StackName}-bot
+          Image: !GetAtt BotImage.RepositoryUri
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref BotTaskLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: !Ref AWS::StackName
+              mode: non-blocking
+              max-buffer-size: 25m
+          MountPoints:
+            - ContainerPath: !Ref GamedataDir
+              SourceVolume: !Sub ${AWS::StackName}-server-data
+          Secrets:
+            - Name: DISCORD_BOT_TOKEN
+              ValueFrom: !Sub '${Secret}:DiscordBotToken::'
+            - Name: RCON_PASSWORD
+              ValueFrom: !Sub '${Secret}:RconPassword::'
+          Environment:
+            - Name: DISCORD_CHANNEL_ID
+              Value: !Ref DiscordChannelId
+            - Name: GAMEDATA_DIR
+              Value: !Ref GamedataDir
+            - Name: SERVER_START_LOG_REGEXP
+              Value: !Ref ServerStartLogRegexp
+            - Name: SERVER_STOP_LOG_REGEXP
+              Value: !Ref ServerStopLogRegexp
+            - Name: PLAYER_JOINED_LOG_REGEXP
+              Value: !Ref PlayerJoinedLogRegexp
+            - Name: PLAYER_LEFT_LOG_REGEXP
+              Value: !Ref PlayerLeftLogRegexp
+            - Name: PLAYER_CHAT_LOG_REGEXP
+              Value: !Ref PlayerChatLogRegexp
+            - Name: LIST_COMMAND_REGEXP
+              Value: !Ref ListCommandRegexp
+            - Name: AUTO_SHUTDOWN_MINUTES
+              Value: !Ref AutoShutdownMinutes
+            - Name: RCON_PORT
+              Value: !Ref RconPort
+            - Name: SERVER_START_FUNCTION_URL
+              Value: !GetAtt StartServerUrl.FunctionUrl
+            - Name: DOWNLOAD_GAMEDATA_FUNCTION_URL
+              Value: !GetAtt DownloadGamedataUrl.FunctionUrl
+            - Name: BUCKET_NAME
+              Value: !Ref BucketName
+            - Name: CLUSTER_NAME
+              Value: !Ref ClusterName
+            - Name: SERVICE_NAME
+              Value: !Ref ServiceName
+            - Name: CLOUDFLARE_API_TOKEN
+              Value: !Sub '{{resolve:secretsmanager:${AWS::StackName}-secret:SecretString:CloudflareApiToken}}'
+            - Name: CLOUDFLARE_ZONE_ID
+              Value: !Ref CloudflareZoneId
+            - Name: CLOUDFLARE_RECORD_ID
+              Value: !Ref CloudflareRecordId
+            - Name: SERVER_PORT
+              Value: !Ref ServerPort
+  #endregion
+
+Metadata:
+  AWS::Composer::Groups:
+    Network:
+      Members:
+        - PublicSubnet
+        - PrivateSubnet
+    Policies:
+      Members:
+        - WriteLogPolicy
+        - ReadBucketPolicy
+        - WriteBucketPolicy
+        - ReadSecretPolicy
+        - ReadRepositoryPolicy
+        - ReadEniPolicy
+        - ReadServicePolicy
+        - WriteServicePolicy
+    SecurityGroups:
+      Members:
+        - StorageSecurityGroup
+        - ServerSecurityGroup
+    Server:
+      Members:
+        - Cluster
+        - Service
+        - TaskDefinition
+        - BotImage
+    Storage:
+      Members:
+        - GameDataStorage
+        - MountTarget
+        - AccessPoint
+    Functions:
+      Members:
+        - PostDeploy
+        - PostDeployEvent
+        - UpdateDns
+        - DetectStartServerEvent
+        - StartServer
+        - DownloadGamedata

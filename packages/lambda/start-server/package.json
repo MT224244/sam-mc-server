@@ -1,0 +1,8 @@
+{
+    "name": "start-server",
+    "version": "1.0.0",
+    "dependencies": {
+        "@aws-sdk/client-ecs": "^3.839.0",
+        "discord.js": "^14.21.0"
+    }
+}
