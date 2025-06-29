@@ -110,6 +110,9 @@ logWatcher.on('startServer', async () => {
             if (parsed.count <= 0) {
                 uninhabinantMinutes++;
             }
+            else {
+                uninhabinantMinutes = 0;
+            }
         }
         catch {
             await botClient.sendTextMessage({
