@@ -9,6 +9,7 @@ import { EventEmitter } from 'eventemitter3';
 import {
     GAMEDATA_DIR,
     PLAYER_CHAT_LOG_REGEXP,
+    PLAYER_INFORMATION_LOG_REGEXP,
     PLAYER_JOINED_LOG_REGEXP,
     PLAYER_LEFT_LOG_REGEXP,
     SERVER_START_LOG_REGEXP,
@@ -18,7 +19,8 @@ import {
 interface LogWatcherEvents {
     startServer: [];
     stopServer: [];
-    playerJoined: [id: string, uuid: string];
+    playerInformation: [id: string, uuid: string];
+    playerJoined: [id: string];
     playerLeft: [id: string];
     playerChat: [id: string, chat: string];
 }
@@ -84,9 +86,15 @@ export class LogWatcher extends EventEmitter<LogWatcherEvents> {
                 continue;
             }
 
+            const playerInformationLog = PLAYER_INFORMATION_LOG_REGEXP.exec(line);
+            if (playerInformationLog) {
+                this.emit('playerInformation', playerInformationLog[1], playerInformationLog[2]);
+                continue;
+            }
+
             const playerJoinedLog = PLAYER_JOINED_LOG_REGEXP.exec(line);
             if (playerJoinedLog) {
-                this.emit('playerJoined', playerJoinedLog[1], playerJoinedLog[2]);
+                this.emit('playerJoined', playerJoinedLog[1]);
                 continue;
             }
 

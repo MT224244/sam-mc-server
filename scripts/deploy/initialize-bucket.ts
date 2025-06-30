@@ -19,6 +19,7 @@ await Bun.write(botEnvFilePath, Object
         DISCORD_CHANNEL_ID: configuration.Parameters.DISCORD_CHANNEL_ID,
         SERVER_START_LOG_REGEXP: configuration.Parameters.SERVER_START_LOG_REGEXP,
         SERVER_STOP_LOG_REGEXP: configuration.Parameters.SERVER_STOP_LOG_REGEXP,
+        PLAYER_INFORMATION_LOG_REGEXP: configuration.Parameters.PLAYER_INFORMATION_LOG_REGEXP,
         PLAYER_JOINED_LOG_REGEXP: configuration.Parameters.PLAYER_JOINED_LOG_REGEXP,
         PLAYER_LEFT_LOG_REGEXP: configuration.Parameters.PLAYER_LEFT_LOG_REGEXP,
         PLAYER_CHAT_LOG_REGEXP: configuration.Parameters.PLAYER_CHAT_LOG_REGEXP,

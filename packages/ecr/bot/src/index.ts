@@ -185,13 +185,21 @@ logWatcher.on('stopServer', async () => {
         console.error(err);
     }
 });
-logWatcher.on('playerJoined', async (name, uuid) => {
+logWatcher.on('playerInformation', (id, uuid) => {
     try {
-        players.set(name, uuid);
+        players.set(id, uuid);
+    }
+    catch (err) {
+        console.error(err);
+    }
+});
+logWatcher.on('playerJoined', async (id) => {
+    try {
+        const uuid = players.get(id) ?? id;
 
         await botClient.sendTextMessage({
             embeds: [new EmbedBuilder()
-                .setAuthor({ name, iconURL: `https://mc-heads.net/avatar/${uuid}` })
+                .setAuthor({ name: id, iconURL: `https://mc-heads.net/avatar/${uuid}` })
                 .setDescription('ログインしました')
                 .setColor('#79b59a')
                 .setTimestamp(),
@@ -204,13 +212,13 @@ logWatcher.on('playerJoined', async (name, uuid) => {
         console.error(err);
     }
 });
-logWatcher.on('playerLeft', async (name) => {
+logWatcher.on('playerLeft', async (id) => {
     try {
-        const uuid = players.get(name) ?? name;
+        const uuid = players.get(id) ?? id;
 
         await botClient.sendTextMessage({
             embeds: [new EmbedBuilder()
-                .setAuthor({ name, iconURL: `https://mc-heads.net/avatar/${uuid}` })
+                .setAuthor({ name: id, iconURL: `https://mc-heads.net/avatar/${uuid}` })
                 .setDescription('ログアウトしました')
                 .setColor('#f09090')
                 .setTimestamp(),
@@ -223,10 +231,10 @@ logWatcher.on('playerLeft', async (name) => {
         console.error(err);
     }
 });
-logWatcher.on('playerChat', async (name, chat) => {
+logWatcher.on('playerChat', async (id, chat) => {
     try {
         const sorted = [...players.keys()].sort((a, b) => b.length - a.length);
-        const key = sorted.find(x => name.includes(x)) ?? name;
+        const key = sorted.find(x => id.includes(x)) ?? id;
         const uuid = players.get(key) ?? key;
 
         await botClient.sendTextMessage({

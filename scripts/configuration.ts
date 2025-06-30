@@ -13,6 +13,7 @@ interface Environment {
         DISCORD_CHANNEL_ID: string;
         SERVER_START_LOG_REGEXP: string;
         SERVER_STOP_LOG_REGEXP: string;
+        PLAYER_INFORMATION_LOG_REGEXP: string;
         PLAYER_JOINED_LOG_REGEXP: string;
         PLAYER_LEFT_LOG_REGEXP: string;
         PLAYER_CHAT_LOG_REGEXP: string;

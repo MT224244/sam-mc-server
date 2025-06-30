@@ -28,6 +28,12 @@ export const SERVER_STOP_LOG_REGEXP = (() => {
     return new RegExp(value);
 })();
 
+export const PLAYER_INFORMATION_LOG_REGEXP = (() => {
+    const value = Bun.env.PLAYER_INFORMATION_LOG_REGEXP;
+    if (!value) throw Error('PLAYER_INFORMATION_LOG_REGEXP not found');
+    return new RegExp(value);
+})();
+
 export const PLAYER_JOINED_LOG_REGEXP = (() => {
     const value = Bun.env.PLAYER_JOINED_LOG_REGEXP;
     if (!value) throw Error('PLAYER_JOINED_LOG_REGEXP not found');
