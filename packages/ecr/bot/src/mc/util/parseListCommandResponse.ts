@@ -12,7 +12,7 @@ interface ListCommandResponse {
  * @returns
  */
 export const parseListCommandResponse = (res: string): ListCommandResponse | undefined => {
-    const listCommand = LIST_COMMAND_REGEXP.exec(res);
+    const listCommand = LIST_COMMAND_REGEXP.exec(res.trim());
     if (!listCommand) return undefined;
 
     const [, count, max, users] = listCommand;
