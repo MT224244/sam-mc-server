@@ -237,13 +237,7 @@ logWatcher.on('playerChat', async (id, chat) => {
         const key = sorted.find(x => id.includes(x)) ?? id;
         const uuid = players.get(key) ?? key;
 
-        await botClient.sendTextMessage({
-            embeds: [new EmbedBuilder()
-                .setAuthor({ name: key, iconURL: `https://mc-heads.net/avatar/${uuid}` })
-                .setDescription(chat)
-                .setColor('#ffffff'),
-            ],
-        });
+        await botClient.sendWebhook(key, `https://mc-heads.net/avatar/${uuid}`, chat);
     }
     catch (err) {
         console.error(err);

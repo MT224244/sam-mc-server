@@ -5,6 +5,7 @@ import type {
     MessageCreateOptions,
     OmitPartialGroupDMChannel,
     PresenceStatusData,
+    Webhook,
 } from 'discord.js';
 import {
     ActivityType,
@@ -39,6 +40,7 @@ export class BotClient extends EventEmitter<BotClientEvents> {
     private client: Client;
     private guild?: Guild;
     private channel?: TextChannel;
+    private webhook?: Webhook;
 
     public constructor() {
         super();
@@ -68,6 +70,16 @@ export class BotClient extends EventEmitter<BotClientEvents> {
 
                         await channel.guild.commands.set(commands.map(x => x.definition));
 
+                        const whName = `${this.client.user?.username} Webhook`;
+                        const whs = await channel.fetchWebhooks();
+                        const wh = whs.find(x => !x.isUserCreated() && x.name === whName);
+                        if (wh) {
+                            this.webhook = wh;
+                        }
+                        else {
+                            this.webhook = await channel.createWebhook({ name: whName });
+                        }
+
                         resolve();
                     }
                     else {
@@ -96,8 +108,17 @@ export class BotClient extends EventEmitter<BotClientEvents> {
         return await this.channel?.send(message);
     }
 
+    public async sendWebhook(username: string, avatarURL: string, content: string) {
+        return await this.webhook?.send({
+            username,
+            avatarURL,
+            content,
+        });
+    }
+
     public async destroy() {
         await this.guild?.commands.set([]);
+        await this.webhook?.delete();
         await Promise.all(commands.map(command => command.dispose?.(
             this.client,
             command as UnionToIntersection<typeof command>,
