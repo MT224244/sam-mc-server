@@ -1,6 +1,6 @@
 {
     "name": "sam-mc-server",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "private": true,
     "scripts": {
         "build:bot": "bun run scripts/build/build-bot-image.ts",

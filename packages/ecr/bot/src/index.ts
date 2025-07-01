@@ -195,11 +195,13 @@ logWatcher.on('playerInformation', (id, uuid) => {
 });
 logWatcher.on('playerJoined', async (id) => {
     try {
-        const uuid = players.get(id) ?? id;
+        const sorted = [...players.keys()].sort((a, b) => b.length - a.length);
+        const key = sorted.find(x => id.includes(x)) ?? id;
+        const uuid = players.get(key) ?? key;
 
         await botClient.sendTextMessage({
             embeds: [new EmbedBuilder()
-                .setAuthor({ name: id, iconURL: `https://mc-heads.net/avatar/${uuid}` })
+                .setAuthor({ name: key, iconURL: `https://mc-heads.net/avatar/${uuid}` })
                 .setDescription('ログインしました')
                 .setColor('#79b59a')
                 .setTimestamp(),
@@ -214,11 +216,13 @@ logWatcher.on('playerJoined', async (id) => {
 });
 logWatcher.on('playerLeft', async (id) => {
     try {
-        const uuid = players.get(id) ?? id;
+        const sorted = [...players.keys()].sort((a, b) => b.length - a.length);
+        const key = sorted.find(x => id.includes(x)) ?? id;
+        const uuid = players.get(key) ?? key;
 
         await botClient.sendTextMessage({
             embeds: [new EmbedBuilder()
-                .setAuthor({ name: id, iconURL: `https://mc-heads.net/avatar/${uuid}` })
+                .setAuthor({ name: key, iconURL: `https://mc-heads.net/avatar/${uuid}` })
                 .setDescription('ログアウトしました')
                 .setColor('#f09090')
                 .setTimestamp(),
