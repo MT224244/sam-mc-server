@@ -28,6 +28,7 @@ AWSでMinecraftサーバーを立てるスタック。
         - bot
         - applications.commands
     - Bot Permissions
+        - Manage Webhooks
         - View Channels
         - Send Messages
         - Manage Messages
